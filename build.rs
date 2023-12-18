@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 extern crate bindgen;
 
 use bindgen::CargoCallbacks;
@@ -20,13 +21,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("cannot canonicalize path");
 
     // This is the path to the `c` headers file.
-    let headers_path = libdir_path.join("vl53l5cx_api.h");
-    let headers_path_str = headers_path.to_str().expect("Path is not a valid string");
+    let driver_header = libdir_path.join("vl53l5cx_api.h");
+    let driver_headers_path_str = driver_header.to_str().expect("Path is not a valid string");
 
     // This is the path to the intermediate object file for our library.
-    let obj_path = libdir_path.join("vl53l5cx_api.o");
+    let driver_obj_path = libdir_path.join("vl53l5cx_api.o");
     // This is the path to the static library file.
-    let lib_path = libdir_path.join("libvl53l5cx_api.a");
+    let driver_lib_path = libdir_path.join("libvl53l5cx_api.a");
 
     // Tell cargo to look for shared libraries in the specified directory
     println!("cargo:rustc-link-search={}", libdir_path.to_str().unwrap());
@@ -36,14 +37,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rustc-link-lib=vl53l5cx_api");
 
     // Tell cargo to invalidate the built crate whenever the header changes.
-    println!("cargo:rerun-if-changed={}", headers_path_str);
+    println!("cargo:rerun-if-changed={}", driver_headers_path_str);
+
 
     // Run `clang` to compile the `hello.c` file into a `hello.o` object file.
     // Unwrap if it is not possible to spawn the process.
-    let clang_out = std::process::Command::new("clang")
+    let clang_out = std::process::Command::new("/home/user/.espressif/tools/xtensa-esp32-elf/esp-12.2.0_20230208/xtensa-esp32-elf/bin/xtensa-esp32-elf-gcc")
         .arg("-c")
         .arg("-o")
-        .arg(&obj_path)
+        .arg(&driver_obj_path)
         .arg(libdir_path.join("vl53l5cx_api.c"))
         .output()
         .unwrap();
@@ -59,10 +61,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Run `ar` to generate the `libhello.a` file from the `hello.o` file.
     // Unwrap if it is not possible to spawn the process.
-    if !std::process::Command::new("ar")
+    if !std::process::Command::new("/home/user/.espressif/tools/xtensa-esp32-elf/esp-12.2.0_20230208/xtensa-esp32-elf/bin/xtensa-esp32-elf-ar")
         .arg("rcs")
-        .arg(lib_path)
-        .arg(obj_path)
+        .arg(driver_lib_path)
+        .arg(driver_obj_path)
         .output()
         .expect("could not spawn `ar`")
         .status
@@ -78,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header(headers_path_str)
+        .header(driver_headers_path_str)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(CargoCallbacks))

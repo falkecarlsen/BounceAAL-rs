@@ -18,7 +18,7 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use esp_idf_hal::delay::BLOCK;
-use esp_idf_hal::gpio::{AnyIOPin, InputPin, OutputPin};
+use esp_idf_hal::gpio::{AnyIOPin, InputPin, OutputPin, PinDriver};
 use esp_idf_hal::i2c::{I2c, I2cConfig, I2cDriver, I2cSlaveConfig, I2cSlaveDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
@@ -32,10 +32,13 @@ use embedded_graphics::{
     prelude::*,
     text::{Baseline, Text},
 };
+use embedded_graphics::pixelcolor::Rgb555;
+use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
+use esp_idf_hal::sys::EspError;
 use esp_idf_svc::sys::esp;
 
-const SLAVE_ADDR: u8 = 0x22;
-const SLAVE_BUFFER_SIZE: usize = 128;
+const OLED_ADDR: u8 = 0x22;
+const OLED_BUFFER_SIZE: usize = 128;
 
 fn i2c_master_init<'d>(
     i2c: impl Peripheral<P=impl I2c> + 'd,
@@ -82,31 +85,32 @@ fn init_tof_config() -> VL53L5CX_Configuration {
     }
 }
 
-extern fn range(i2c_master: &I2cDriver) -> u8 {
+unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
     /*********************************/
     /*   VL53L5CX ranging variables  */
     /*********************************/
-    unsafe {
-        let mut dev: VL53L5CX_Configuration;
-        let mut results: VL53L5CX_ResultsData;
-        let mut status: u8 = 0;
-        let mut iter: u8 = 0;
-        let mut is_alive: u8 = 0;
-        let mut is_ready: u8 = 0;
-        let mut integration_time_ms: u32 = 0;
+    let mut dev: VL53L5CX_Configuration = init_tof_config();
+    let mut results: VL53L5CX_ResultsData;
+    let mut status: u8 = 0;
+    let mut iter: u8 = 0;
+    let mut is_alive: u8 = 0;
+    let mut is_ready: u8 = 0;
+    let mut integration_time_ms: u32 = 0;
 
-        /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
-        //Reset_Sensor(&(Dev.platform));
+    // into string
+    println!("VL53L5CX API version {}", std::str::from_utf8(VL53L5CX_API_REVISION).unwrap());
 
-        status = vl53l5cx_set_i2c_address(&mut dev, 0x20);
-        println!("check tof alive");
-        status = vl53l5cx_is_alive(&mut dev, &mut is_alive);
-        if (is_alive == 0 || status != 0) {
-            println!("VL53L5CX not detected at requested address");
-            return status;
-        }
-        return 0;
+    /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
+    Reset_Sensor(&mut (dev.platform));
+
+    println!("check tof alive");
+    status = vl53l5cx_is_alive(&mut dev, &mut is_alive);
+    if (is_alive == 0 || status != 0) {
+        println!("VL53L5CX not detected at requested address");
+        return status;
     }
+    return 0;
+
     /*
     /* (Mandatory) Init VL53L5CX sensor */
     ESP_LOGI(TAG, "init sensor");
@@ -203,8 +207,8 @@ extern fn range(i2c_master: &I2cDriver) -> u8 {
 #[cfg(esp32)]
 fn main() -> anyhow::Result<()> {
     esp_idf_hal::sys::link_patches();
+    esp_idf_svc::sys::link_patches();
 
-    //let dp = stm32::Peripherals::take().unwrap();
     let peripherals = Peripherals::take()?;
 
     let mut i2c_master = i2c_master_init(
@@ -214,7 +218,9 @@ fn main() -> anyhow::Result<()> {
         400.kHz().into(),
     )?;
 
-    range(&i2c_master);
+    let mut led = PinDriver::output(peripherals.pins.gpio2)?;
+
+    unsafe { range(&mut i2c_master); }
 
     let interface = I2CDisplayInterface::new(i2c_master);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
@@ -224,6 +230,10 @@ fn main() -> anyhow::Result<()> {
     let text_style = MonoTextStyleBuilder::new()
         .font(&FONT_6X10)
         .text_color(BinaryColor::On)
+        .build();
+
+    let blackout_style = PrimitiveStyleBuilder::new()
+        .fill_color(BinaryColor::Off)
         .build();
 
     Text::with_baseline(concat!("BounceAAL (", env!("VERGEN_GIT_DESCRIBE"), ")"), Point::zero(), text_style, Baseline::Top)
@@ -236,9 +246,20 @@ fn main() -> anyhow::Result<()> {
         .unwrap();
 
     display.flush().unwrap();
-
+    let mut c = 0;
     loop {
-        // trigger watchdog
-        std::thread::sleep(std::time::Duration::from_millis(2000));
+        // blink led for 200 ms non blocking
+        led.set_high().unwrap();
+        Rectangle::new(Point::new(12, 32), Size::new(128, 16))
+            .into_styled(blackout_style)
+            .draw(&mut display)
+            .unwrap();
+        Text::with_baseline(&*format!("c: {}", c), Point::new(0, 32), text_style, Baseline::Top)
+            .draw(&mut display)
+            .unwrap();
+        c += 1;
+        display.flush().unwrap();
+        led.set_low().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
