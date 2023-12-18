@@ -14,4 +14,6 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
-
+.o
+.a
+VL53L5CX_ULD_driver_1.3.10/

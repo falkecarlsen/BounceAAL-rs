@@ -1,38 +1,23 @@
 # BounceAAL-rs
-Rust port of firmware for _hopefully_ lesser overhead in development. Assumes an EOS Linux system or similar Arch derivative.
+Rust port of firmware for BounceAAL. Assumes an EOS Linux system or similar Arch derivative with `rustup` for Rust toolchain management installed.
 
-Consider doing below setup in a terminal and run your IDE, e.g. rustrover by forking off to retain env `rustrover &`.
+Hardware is an ESP32 generic make, VL53L5CX TOF sensor, 128x64 OLED display, and IRLZ44N mosfets paired with 36V PSU for driving solenoids at various duty cycles. 
 
-# Setup
-Using esp-rs and esp-up.
+# Dependencies
+Needs `xtensa-esp32-elf` toolchain and `esp-idf` for building. `espup` is used to install and update these. [esp-rs/espup docs](https://github.com/esp-rs/rust-build#espup-installation).
 ```sh
-$ pacman -S esp-idf
-$ source /opt/esp-idf/export.fish
+cargo install espup
+espup install # To install Espressif Rust ecosystem
+# [Unix]: Source the following file in every terminal before building a project
+. $HOME/export-esp.sh
 ```
 
-## Setup of bindgen
-Must have Clang and set path for bindings to be compiled through `build.rs`. TODO: perhaps already given by espup?
+If using an IDE with run-configurations for building, the following environment variables (generated and contained in `$HOME/user/export-esp.sh`) should be set:
 ```sh
-$ pacman -S clang
-$ pacman -Ql clang | grep libclang
-clang /usr/lib/libclang-cpp.so
-clang /usr/lib/libclang-cpp.so.16
-clang /usr/lib/libclang.so
-clang /usr/lib/libclang.so.16
-clang /usr/lib/libclang.so.16.0.6
-# below is contents of $HOME/export-esp.sh provided by esp-rs through espup
-$ export LIBCLANG_PATH=/home/user/.rustup/toolchains/esp/xtensa-esp32-elf-clang/esp-16.0.4-20231113/esp-clang/lib
-$ export PATH="/home/user/.rustup/toolchains/esp/xtensa-esp-elf/esp-13.2.0_20230928/xtensa-esp-elf/bin:$PATH"
+export PATH="/home/user/.rustup/toolchains/esp/xtensa-esp-elf/esp-13.2.0_20230928/xtensa-esp-elf/bin:$PATH"
+export LIBCLANG_PATH="/home/user/.rustup/toolchains/esp/xtensa-esp32-elf-clang/esp-16.0.4-20231113/esp-clang/lib"
 ```
-
-## VL53L5CX
-Only mandatory API sources:
-- include:
-  vl53l5cx_api.h
-  vl53l5cx_buffers.h
-- src:
-    - vl53l5cx_api.c
-
-- platform
-    - platform.c
-    - platform.h
+## Hardware driver (VL53L5CX)
+The VL53L5CX driver is a C library that is used to communicate with the VL53L5CX sensor. 
+The driver is provided as a source code from STMicroelectronics under MIT license. 
+Manual finagling is required to get it to work with Rust, e.g. merging `platform.h/c` into `vl53l5cx_api.h/c`.

@@ -14,6 +14,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // set git and build info for internal use
     EmitBuilder::builder().all_git().all_build().emit()?;
 
+
+    let driver = "vl53l5cx_api";
     // This is the directory where the `c` library is located.
     let libdir_path = PathBuf::from("drivers/vl53l5cx-uld")
         // Canonicalize the path as `rustc-link-search` requires an absolut path.
@@ -21,47 +23,48 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("cannot canonicalize path");
 
     // This is the path to the `c` headers file.
-    let driver_header = libdir_path.join("vl53l5cx_api.h");
+    let driver_header = libdir_path.join(driver.to_owned() + ".h");
     let driver_headers_path_str = driver_header.to_str().expect("Path is not a valid string");
 
     // This is the path to the intermediate object file for our library.
-    let driver_obj_path = libdir_path.join("vl53l5cx_api.o");
-    // This is the path to the static library file.
-    let driver_lib_path = libdir_path.join("libvl53l5cx_api.a");
+    let driver_obj_path = libdir_path.join(driver.to_owned() + ".o");
+    // This is the path to the static library file. Note *needs* prefix `lib`.
+    let driver_lib_path = libdir_path.join("lib".to_owned() + driver + ".a");
 
     // Tell cargo to look for shared libraries in the specified directory
     println!("cargo:rustc-link-search={}", libdir_path.to_str().unwrap());
 
     // Tell cargo to tell rustc to link our `hello` library. Cargo will
     // automatically know it must look for a `libhello.a` file.
-    println!("cargo:rustc-link-lib=vl53l5cx_api");
+    println!("cargo:rustc-link-lib={}", driver);
 
     // Tell cargo to invalidate the built crate whenever the header changes.
     println!("cargo:rerun-if-changed={}", driver_headers_path_str);
 
 
-    // Run `clang` to compile the `hello.c` file into a `hello.o` object file.
-    // Unwrap if it is not possible to spawn the process.
-    let clang_out = std::process::Command::new("/home/user/.espressif/tools/xtensa-esp32-elf/esp-12.2.0_20230208/xtensa-esp32-elf/bin/xtensa-esp32-elf-gcc")
+    // Compile the `c` library by invoking `xtensa-esp32-elf-gcc` assuming it has been sourced to path.
+    let clang_out = std::process::Command::new("xtensa-esp32-elf-gcc")
+        .arg("-mlongcalls") // -mlongcalls needed for lib due to large code size?
+        // (https://gcc.gnu.org/onlinedocs/gcc-3.4.6/gcc/Xtensa-Options.html)
         .arg("-c")
         .arg("-o")
         .arg(&driver_obj_path)
-        .arg(libdir_path.join("vl53l5cx_api.c"))
+        .arg(libdir_path.join(driver.to_owned() + ".c"))
         .output()
         .unwrap();
 
-    // output stdout and stderr
-    println!("stdout: {}", String::from_utf8_lossy(&clang_out.stdout));
+    // output stdout and stderr for debugging
+    //println!("stdout: {}", String::from_utf8_lossy(&clang_out.stdout));
     println!("stderr: {}", String::from_utf8_lossy(&clang_out.stderr));
 
     if clang_out.status.code() != Some(0) {
         // Panic if the command was not successful.
-        panic!("could not compile `vl53l5cx_api.c`");
+        panic!("could not compile: {:?}", driver_header);
     }
 
     // Run `ar` to generate the `libhello.a` file from the `hello.o` file.
     // Unwrap if it is not possible to spawn the process.
-    if !std::process::Command::new("/home/user/.espressif/tools/xtensa-esp32-elf/esp-12.2.0_20230208/xtensa-esp32-elf/bin/xtensa-esp32-elf-ar")
+    if !std::process::Command::new("ar")
         .arg("rcs")
         .arg(driver_lib_path)
         .arg(driver_obj_path)

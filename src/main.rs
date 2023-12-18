@@ -1,20 +1,5 @@
-//! Test communication between a master and a slave I2C on the same device
-//!
-//! Wiring required, but can be changed in main():
-//! - GPIO21 to GPIO18
-//! - GPIO22 to GPIO19
-//!
-//! ESP32-C2/C3 does not have two I2C peripherals, so this ecample will not work.
-//!
-//! Description:
-//! Consists of three parts:
-//! 1. Simple master write, master writes 8 bytes and print out what slave receives
-//! 2. Simple master read, master read 8 bytes and print out.
-//! 3. Read/write register, write a value to a register addr and read it back.
-//!
-#![allow(unused)]
-
 // include bindings from TOF driver
+#![allow(non_snake_case, non_camel_case_types, non_upper_case_globals)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use esp_idf_hal::delay::BLOCK;
@@ -67,7 +52,7 @@ fn i2c_slave_init<'d>(
 
 #[cfg(not(esp32))]
 fn main() -> anyhow::Result<()> {
-    println!("Test only configured for ESP32");
+    eprintln!("Firmware only tested on ESP32");
     Ok(())
 }
 
@@ -248,7 +233,6 @@ fn main() -> anyhow::Result<()> {
     display.flush().unwrap();
     let mut c = 0;
     loop {
-        // blink led for 200 ms non blocking
         led.set_high().unwrap();
         Rectangle::new(Point::new(12, 32), Size::new(128, 16))
             .into_styled(blackout_style)
