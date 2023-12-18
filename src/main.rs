@@ -10,23 +10,23 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::prelude::*;
 use esp_idf_hal::units::Hertz;
 
-use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
+use embedded_graphics::pixelcolor::Rgb555;
+use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
 use embedded_graphics::{
     mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::*,
     text::{Baseline, Text},
 };
-use embedded_graphics::pixelcolor::Rgb555;
-use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
 use esp_idf_hal::sys::EspError;
 use esp_idf_svc::sys::esp;
+use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 
 const OLED_ADDR: u8 = 0x22;
 const OLED_BUFFER_SIZE: usize = 128;
 
 fn i2c_master_init<'d>(
-    i2c: impl Peripheral<P=impl I2c> + 'd,
+    i2c: impl Peripheral<P = impl I2c> + 'd,
     sda: AnyIOPin,
     scl: AnyIOPin,
     baudrate: Hertz,
@@ -37,7 +37,7 @@ fn i2c_master_init<'d>(
 }
 
 fn i2c_slave_init<'d>(
-    i2c: impl Peripheral<P=impl I2c> + 'd,
+    i2c: impl Peripheral<P = impl I2c> + 'd,
     sda: AnyIOPin,
     scl: AnyIOPin,
     buflen: usize,
@@ -83,7 +83,10 @@ unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
     let mut integration_time_ms: u32 = 0;
 
     // into string
-    println!("VL53L5CX API version {}", std::str::from_utf8(VL53L5CX_API_REVISION).unwrap());
+    println!(
+        "VL53L5CX API version {}",
+        std::str::from_utf8(VL53L5CX_API_REVISION).unwrap()
+    );
 
     /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
     Reset_Sensor(&mut (dev.platform));
@@ -205,7 +208,9 @@ fn main() -> anyhow::Result<()> {
 
     let mut led = PinDriver::output(peripherals.pins.gpio2)?;
 
-    unsafe { range(&mut i2c_master); }
+    unsafe {
+        range(&mut i2c_master);
+    }
 
     let interface = I2CDisplayInterface::new(i2c_master);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
@@ -221,14 +226,24 @@ fn main() -> anyhow::Result<()> {
         .fill_color(BinaryColor::Off)
         .build();
 
-    Text::with_baseline(concat!("BounceAAL (", env!("VERGEN_GIT_DESCRIBE"), ")"), Point::zero(), text_style, Baseline::Top)
-        .draw(&mut display)
-        .unwrap();
+    Text::with_baseline(
+        concat!("BounceAAL (", env!("VERGEN_GIT_DESCRIBE"), ")"),
+        Point::zero(),
+        text_style,
+        Baseline::Top,
+    )
+    .draw(&mut display)
+    .unwrap();
 
     // write git commit as text to indicate version, using vergen
-    Text::with_baseline("warming up sensors", Point::new(0, 16), text_style, Baseline::Top)
-        .draw(&mut display)
-        .unwrap();
+    Text::with_baseline(
+        "warming up sensors",
+        Point::new(0, 16),
+        text_style,
+        Baseline::Top,
+    )
+    .draw(&mut display)
+    .unwrap();
 
     display.flush().unwrap();
     let mut c = 0;
@@ -238,9 +253,14 @@ fn main() -> anyhow::Result<()> {
             .into_styled(blackout_style)
             .draw(&mut display)
             .unwrap();
-        Text::with_baseline(&*format!("c: {}", c), Point::new(0, 32), text_style, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
+        Text::with_baseline(
+            &*format!("c: {}", c),
+            Point::new(0, 32),
+            text_style,
+            Baseline::Top,
+        )
+        .draw(&mut display)
+        .unwrap();
         c += 1;
         display.flush().unwrap();
         led.set_low().unwrap();

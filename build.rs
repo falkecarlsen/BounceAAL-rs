@@ -3,8 +3,8 @@ extern crate bindgen;
 
 use bindgen::CargoCallbacks;
 
-use std::error::Error;
 use std::env;
+use std::error::Error;
 use std::path::PathBuf;
 use vergen::EmitBuilder;
 
@@ -13,7 +13,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     embuild::espidf::sysenv::output();
     // set git and build info for internal use
     EmitBuilder::builder().all_git().all_build().emit()?;
-
 
     let driver = "vl53l5cx_api";
     // This is the directory where the `c` library is located.
@@ -40,7 +39,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Tell cargo to invalidate the built crate whenever the header changes.
     println!("cargo:rerun-if-changed={}", driver_headers_path_str);
-
 
     // Compile the `c` library by invoking `xtensa-esp32-elf-gcc` assuming it has been sourced to path.
     let clang_out = std::process::Command::new("xtensa-esp32-elf-gcc")
