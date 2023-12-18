@@ -75,18 +75,12 @@ unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
     /*   VL53L5CX ranging variables  */
     /*********************************/
     let mut dev: VL53L5CX_Configuration = init_tof_config();
-    let mut results: VL53L5CX_ResultsData;
+    let mut results: VL53L5CX_ResultsData = todo!("init results somehow");
     let mut status: u8 = 0;
     let mut iter: u8 = 0;
     let mut is_alive: u8 = 0;
     let mut is_ready: u8 = 0;
     let mut integration_time_ms: u32 = 0;
-
-    // into string
-    println!(
-        "VL53L5CX API version {}",
-        std::str::from_utf8(VL53L5CX_API_REVISION).unwrap()
-    );
 
     /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
     Reset_Sensor(&mut (dev.platform));
@@ -97,19 +91,19 @@ unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
         println!("VL53L5CX not detected at requested address");
         return status;
     }
-    return 0;
 
-    /*
     /* (Mandatory) Init VL53L5CX sensor */
-    ESP_LOGI(TAG, "init sensor");
-    status = vl53l5cx_init(&Dev);
-    if (status) {
-        ESP_LOGI(TAG, "VL53L5CX ULD Loading failed");
+    println!("init sensor");
+    status = vl53l5cx_init(&mut dev);
+    if (status != 0) {
+        println!("VL53L5CX ULD Loading failed");
         return status;
     }
 
-    ESP_LOGI(TAG, "VL53L5CX ULD ready ! (Version : %s)",
-             VL53L5CX_API_REVISION);
+    println!(
+        "VL53L5CX ULD ready ! (Version : {:?})",
+        VL53L5CX_API_REVISION
+    );
 
     /*********************************/
     /*        Set some params        */
@@ -118,9 +112,13 @@ unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
     /* Set resolution in 8x8. WARNING : As others settings depend to this
      * one, it must be the first to use.
      */
-    status = vl53l5cx_set_resolution(&Dev, VL53L5CX_RESOLUTION_8X8);
-    if (status) {
-        ESP_LOGI(TAG, "vl53l5cx_set_resolution failed, status %u", status);
+    /*
+       #define VL53L5CX_RESOLUTION_4X4			((uint8_t) 16U)
+       #define VL53L5CX_RESOLUTION_8X8			((uint8_t) 64U)
+    */
+    status = vl53l5cx_set_resolution(&mut dev, 16);
+    if (status != 0) {
+        println!("vl53l5cx_set_resolution failed, status {}", status);
         return status;
     }
 
@@ -128,68 +126,75 @@ unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
      * Using 4x4, min frequency is 1Hz and max is 60Hz
      * Using 8x8, min frequency is 1Hz and max is 15Hz
      */
-    status = vl53l5cx_set_ranging_frequency_hz(&Dev, 10);
-    if (status) {
-        ESP_LOGI(TAG, "vl53l5cx_set_ranging_frequency_hz failed, status %u", status);
+    status = vl53l5cx_set_ranging_frequency_hz(&mut dev, 10);
+    if (status != 0) {
+        println!(
+            "vl53l5cx_set_ranging_frequency_hz failed, status {}",
+            status
+        );
         return status;
     }
 
     /* Set target order to closest */
-    status = vl53l5cx_set_target_order(&Dev, VL53L5CX_TARGET_ORDER_CLOSEST);
-    if (status) {
-        ESP_LOGI(TAG, "vl53l5cx_set_target_order failed, status %u", status);
+    /*
+       #define VL53L5CX_TARGET_ORDER_CLOSEST		((uint8_t) 1U)
+       #define VL53L5CX_TARGET_ORDER_STRONGEST		((uint8_t) 2U)
+    */
+    status = vl53l5cx_set_target_order(&mut dev, 1);
+    if (status != 0) {
+        println!("vl53l5cx_set_target_order failed, status {}", status);
         return status;
     }
 
     /* Get current integration time */
-    status = vl53l5cx_get_integration_time_ms(&Dev, &integration_time_ms);
-    if (status) {
-        ESP_LOGI(TAG, "vl53l5cx_get_integration_time_ms failed, status %u", status);
+    status = vl53l5cx_get_integration_time_ms(&mut dev, &mut integration_time_ms);
+    if (status != 0) {
+        println!("vl53l5cx_get_integration_time_ms failed, status {}", status);
         return status;
     }
-    ESP_LOGI(TAG, "Current integration time is : %ld ms", integration_time_ms);
+    println!("Current integration time is : {} ms", integration_time_ms);
 
     /*********************************/
     /*         Ranging loop          */
     /*********************************/
 
-    status = vl53l5cx_start_ranging(&Dev);
+    status = vl53l5cx_start_ranging(&mut dev);
 
-    loop = 0;
-    while (loop < 10) {
+    let mut iter = 0;
+    while (iter < 10) {
         /* Use polling function to know when a new measurement is ready.
          * Another way can be to wait for HW interrupt raised on PIN A3
          * (GPIO 1) when a new measurement is ready */
 
-        status = vl53l5cx_check_data_ready(&Dev, &isReady);
+        status = vl53l5cx_check_data_ready(&mut dev, &mut is_ready);
 
-        if (isReady) {
-            vl53l5cx_get_ranging_data(&Dev, &Results);
+        if (is_ready != 0) {
+            vl53l5cx_get_ranging_data(&mut dev, &mut results);
 
             /* As the sensor is set in 8x8 mode, we have a total
              * of 64 zones to print. For this example, only the data of
              * first zone are print */
-            ESP_LOGI(TAG, "Print data no : %3u", Dev.streamcount);
-            for (i = 0; i < 64; i++) {
-                ESP_LOGI(TAG, "Zone : %3d, Status : %3u, Distance : %4d mm",
+            println!("Print data no : {}", dev.streamcount);
+            for i in 0..64 {
+                //println!("Zone : %3d, Status : %3u, Distance : %4d mm",
+                /*
+                println!("Zone : {}, Status : {}, Distance : {} mm",
                          i,
-                         Results.target_status[VL53L5CX_NB_TARGET_PER_ZONE * i],
-                         Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE * i]);
+                         results.target_status[VL53L5CX_NB_TARGET_PER_ZONE * i],
+                         results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE * i]);
+                         */
             }
-            ESP_LOGI(TAG, "");
-            loop++;
+            iter += 1;
         }
 
         /* Wait a few ms to avoid too high polling (function in platform
          * file, not in API) */
-        WaitMs(&(Dev.platform), 5);
+        WaitMs(&mut (dev.platform), 5);
     }
 
-    status = vl53l5cx_stop_ranging(&Dev);
-    ESP_LOGI(TAG, "End of ULD demo");
+    status = vl53l5cx_stop_ranging(&mut dev);
+    println!("End of ULD demo");
     return status;
-
-     */
 }
 
 #[cfg(esp32)]
