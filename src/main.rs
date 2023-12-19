@@ -70,12 +70,36 @@ fn init_tof_config() -> VL53L5CX_Configuration {
     }
 }
 
+fn init_tof_results() -> VL53L5CX_ResultsData {
+    VL53L5CX_ResultsData {
+        silicon_temp_degc: 0,
+        ambient_per_spad: [0u32; 64usize],
+        nb_target_detected: [0u8; 64usize],
+        nb_spads_enabled: [0u32; 64usize],
+        signal_per_spad: [0u32; 64usize],
+        range_sigma_mm: [0u16; 64usize],
+        distance_mm: [0i16; 64usize],
+        reflectance: [0u8; 64usize],
+        target_status: [0u8; 64usize],
+        motion_indicator: VL53L5CX_ResultsData__bindgen_ty_1 {
+            global_indicator_1: 0,
+            global_indicator_2: 0,
+            status: 0,
+            nb_of_detected_aggregates: 0,
+            nb_of_aggregates: 0,
+            spare: 0,
+            motion: [0u32; 32usize],
+        },
+
+    }
+}
+
 unsafe fn range(i2c_master: &mut I2cDriver) -> u8 {
     /*********************************/
     /*   VL53L5CX ranging variables  */
     /*********************************/
     let mut dev: VL53L5CX_Configuration = init_tof_config();
-    let mut results: VL53L5CX_ResultsData = todo!("init results somehow");
+    let mut results: VL53L5CX_ResultsData = init_tof_results();
     let mut status: u8 = 0;
     let mut iter: u8 = 0;
     let mut is_alive: u8 = 0;
